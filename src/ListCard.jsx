@@ -69,6 +69,7 @@ export function ListCard({ list, A }) {
           />
         ))}
         <AddRow onAdd={(v) => A.add(list.id, v)} placeholder="Add an item" />
+        <div className="col-fill" />
       </div>
     </div>
   );

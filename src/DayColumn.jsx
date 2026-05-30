@@ -40,6 +40,7 @@ export function DayColumn({ date, isToday, hasItems, items, A }) {
           />
         ))}
         <AddRow onAdd={A.add} />
+        <div className="col-fill" />
       </div>
     </div>
   );

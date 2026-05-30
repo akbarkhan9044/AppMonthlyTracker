@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Icons } from './Icons';
 import { DayColumn } from './DayColumn';
 import { ListCard } from './ListCard';
@@ -14,6 +14,7 @@ function App() {
   const [dark, setDark] = useState(() => localStorage.getItem('dayboard.dark') === '1');
   const [fontIdx, setFontIdx] = useState(() => Number(localStorage.getItem('dayboard.font')) || 5);
   const [anchor, setAnchor] = useState(() => today0());
+  const [viewDays, setViewDays] = useState(() => Number(localStorage.getItem('dayboard.view')) || 5);
   const [board, setBoard] = useState(0);
   const [boards, setBoards] = useState(SEED_BOARDS);
   const [query, setQuery] = useState('');
@@ -23,6 +24,16 @@ function App() {
   const [listsCollapsed, setListsCollapsed] = useState(false);
   const [addTabOpen, setAddTabOpen] = useState(false);
   const [newTabName, setNewTabName] = useState('');
+  const [deleteListTarget, setDeleteListTarget] = useState(null);
+  const [deleteTabTarget, setDeleteTabTarget] = useState(null);
+  const [menuOpenFor, setMenuOpenFor] = useState(null);
+  const [manageBoard, setManageBoard] = useState(0);
+  const [renameTabOpen, setRenameTabOpen] = useState(false);
+  const [renameTabName, setRenameTabName] = useState('');
+  const [manageListsOpen, setManageListsOpen] = useState(false);
+  const [editingListId, setEditingListId] = useState(null);
+  const [editingListName, setEditingListName] = useState('');
+  const manageDragFrom = useRef(null);
 
   const createTab = useCallback(() => {
     const trimmed = newTabName.trim();
@@ -36,6 +47,89 @@ function App() {
     setNewTabName('');
     setAddTabOpen(false);
   }, []);
+
+  const confirmDeleteList = useCallback(() => {
+    if (!deleteListTarget) return;
+    setStore(s => {
+      const currentLists = s.listsByBoard?.[board] || [];
+      return {
+        ...s,
+        listsByBoard: {
+          ...s.listsByBoard,
+          [board]: currentLists.filter(l => l.id !== deleteListTarget.id)
+        }
+      };
+    });
+    setDeleteListTarget(null);
+  }, [deleteListTarget, board]);
+
+  const deleteTab = useCallback((idx) => {
+    if (boards.length <= 1) return;
+    setDeleteTabTarget({ idx, name: boards[idx] });
+  }, [boards]);
+
+  const confirmDeleteTab = useCallback(() => {
+    if (!deleteTabTarget) return;
+    const { idx } = deleteTabTarget;
+    // Re-key listsByBoard: drop idx, shift higher indices down by one
+    setStore(s => {
+      const next = {};
+      Object.entries(s.listsByBoard || {}).forEach(([k, lists]) => {
+        const i = Number(k);
+        if (i === idx) return;
+        next[i > idx ? i - 1 : i] = lists;
+      });
+      return { ...s, listsByBoard: next };
+    });
+    setBoards(bs => bs.filter((_, i) => i !== idx));
+    setBoard(b => (b > idx ? b - 1 : b === idx ? Math.max(0, idx - 1) : b));
+    setDeleteTabTarget(null);
+  }, [deleteTabTarget]);
+
+  // Manage-tab menu actions (operate on the chosen tab index)
+  const openRenameTab = useCallback((idx) => {
+    setMenuOpenFor(null);
+    setManageBoard(idx);
+    setRenameTabName(boards[idx]);
+    setRenameTabOpen(true);
+  }, [boards]);
+
+  const saveRenameTab = useCallback(() => {
+    const trimmed = renameTabName.trim();
+    if (!trimmed) return;
+    setBoards(bs => bs.map((b, i) => (i === manageBoard ? trimmed : b)));
+    setRenameTabOpen(false);
+  }, [renameTabName, manageBoard]);
+
+  const openManageLists = useCallback((idx) => {
+    setMenuOpenFor(null);
+    setManageBoard(idx);
+    setEditingListId(null);
+    setManageListsOpen(true);
+  }, []);
+
+  const reorderLists = useCallback((from, to) => {
+    if (from === to) return;
+    setStore(s => {
+      const lists = [...(s.listsByBoard?.[manageBoard] || [])];
+      const [m] = lists.splice(from, 1);
+      lists.splice(to, 0, m);
+      return { ...s, listsByBoard: { ...s.listsByBoard, [manageBoard]: lists } };
+    });
+  }, [manageBoard]);
+
+  const removeListNow = useCallback((lid) => {
+    setStore(s => {
+      const lists = (s.listsByBoard?.[manageBoard] || []).filter(l => l.id !== lid);
+      return { ...s, listsByBoard: { ...s.listsByBoard, [manageBoard]: lists } };
+    });
+  }, [manageBoard]);
+
+  const saveListName = useCallback((lid) => {
+    const trimmed = editingListName.trim();
+    if (trimmed) setLists(manageBoard, ls => ls.map(l => (l.id === lid ? { ...l, name: trimmed } : l)));
+    setEditingListId(null);
+  }, [editingListName, manageBoard]);
 
   // Focus mode + Pomodoro timer
   const [focusMode, setFocusMode] = useState(false);
@@ -87,6 +181,7 @@ function App() {
   useEffect(() => { saveStore(store); }, [store]);
   useEffect(() => { localStorage.setItem('dayboard.dark', dark ? '1' : '0'); }, [dark]);
   useEffect(() => { localStorage.setItem('dayboard.font', String(fontIdx)); }, [fontIdx]);
+  useEffect(() => { localStorage.setItem('dayboard.view', String(viewDays)); }, [viewDays]);
 
   // Apply theme + font size
   useEffect(() => {
@@ -95,7 +190,10 @@ function App() {
     r.style.setProperty('--base-size', FONT_STEPS[fontIdx] + 'px');
   }, [dark, fontIdx]);
 
-  const days = useMemo(() => [0, 1, 2, 3, 4].map(i => addDays(anchor, i)), [anchor]);
+  const days = useMemo(
+    () => Array.from({ length: viewDays }, (_, i) => addDays(anchor, i)),
+    [anchor, viewDays]
+  );
 
   // Day mutations
   const setDay = (key, fn) => setStore(s => {
@@ -157,13 +255,15 @@ function App() {
     })),
     rename: (lid, name) => setLists(board, ls => ls.map(l => l.id === lid ? { ...l, name } : l)),
     delList: (lid) => {
-      if (confirm('Delete this list?')) setLists(board, ls => ls.filter(l => l.id !== lid));
+      const l = (store.listsByBoard?.[board] || []).find(x => x.id === lid);
+      setDeleteListTarget({ id: lid, name: l?.name || 'this list' });
     },
     newList: () => setLists(board, ls => [...ls, { id: uid(), name: 'NEW LIST', items: [] }]),
   };
 
   // Get current board's lists
   const currentBoardLists = store.listsByBoard?.[board] || [];
+  const manageBoardLists = store.listsByBoard?.[manageBoard] || [];
 
   const dayItems = (d) => {
     const key = dayKey(d);
@@ -181,11 +281,13 @@ function App() {
           out.push({ where: k, text: it.text, done: it.done });
       })
     );
-    store.lists.forEach(l =>
-      l.items.forEach(it => {
-        if (!it.header && it.text.toLowerCase().includes(q))
-          out.push({ where: l.name, text: it.text, done: it.done });
-      })
+    Object.values(store.listsByBoard || {}).forEach(lists =>
+      lists.forEach(l =>
+        l.items.forEach(it => {
+          if (!it.header && it.text.toLowerCase().includes(q))
+            out.push({ where: l.name, text: it.text, done: it.done });
+        })
+      )
     );
     return out;
   }, [query, store]);
@@ -266,7 +368,7 @@ function App() {
         <button className="week-nav week-nav-left" onClick={() => navigateDate(-1)}>
           {Icons.chevL()}
         </button>
-        <div className={`week${transitioning ? ' transitioning' : ''}`}>
+        <div className={`week${transitioning ? ' transitioning' : ''}`} style={{ '--cols': viewDays }}>
           {days.map((d) => {
             const key = dayKey(d);
             const items = dayItems(d);
@@ -289,19 +391,47 @@ function App() {
 
       {/* Board tabs */}
       <div className="boards">
-        <button className="board-grip" tabIndex={-1}>{Icons.dots()}</button>
         {boards.map((b, i) => {
           const boardLists = store.listsByBoard?.[i] || [];
           const itemCount = boardLists.reduce((sum, l) => sum + l.items.filter(x => !x.done).length, 0);
           return (
-            <button
-              key={b}
-              className={`board${i === board ? ' active' : ''}`}
-              onClick={() => setBoard(i)}
-            >
-              {b}
-              {itemCount > 0 && <span className="board-n">{itemCount}</span>}
-            </button>
+            <span key={i} className={`board${i === board ? ' active' : ''}`}>
+              <button className="board-label" onClick={() => setBoard(i)}>
+                {b}
+                {itemCount > 0 && <span className="board-n">{itemCount}</span>}
+              </button>
+              <div className="board-grip-wrap">
+                <button
+                  className={`board-grip${menuOpenFor === i ? ' active' : ''}`}
+                  title="Manage tab"
+                  onClick={() => setMenuOpenFor(o => (o === i ? null : i))}
+                >
+                  {Icons.dots()}
+                </button>
+                {menuOpenFor === i && (
+                  <>
+                    <div className="menu-backdrop" onClick={() => setMenuOpenFor(null)} />
+                    <div className="manage-menu">
+                      <div className="manage-menu-head">MANAGE TAB</div>
+                      <button className="manage-menu-item" onClick={() => openManageLists(i)}>
+                        {Icons.dragHandle()} Manage lists in tab
+                      </button>
+                      <button className="manage-menu-item" onClick={() => openRenameTab(i)}>
+                        {Icons.edit()} Rename tab
+                      </button>
+                      {boards.length > 1 && (
+                        <button
+                          className="manage-menu-item danger"
+                          onClick={() => { setMenuOpenFor(null); deleteTab(i); }}
+                        >
+                          {Icons.minus()} Delete tab
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </span>
           );
         })}
         <button
@@ -322,7 +452,7 @@ function App() {
 
       {/* Custom lists */}
       {!listsCollapsed && (
-        <div className="lists">
+        <div className="lists" style={{ '--cols': viewDays }}>
           {currentBoardLists.map(l => (
             <ListCard key={l.id} list={l} A={listActions} />
           ))}
@@ -336,37 +466,26 @@ function App() {
 
       {/* Footer */}
       <footer className="footer">
-        <div className="ft-left">
-          <button className="ft-icon" title="Emoji">😊</button>
-          <button className="ft-icon" title="Sync">{Icons.repeat()}</button>
-        </div>
-        <div className="ft-center">
-          {[1, 3, 5, 7].map(n => (
-            <button
-              key={n}
-              className={`fontstep${fontIdx === n ? ' active' : ''}`}
-              title={n === 1 ? 'Focus mode' : `Text size ${n}`}
-              onClick={() => {
-                if (n === 1) { setFocusMode(true); return; }
-                setFontIdx(n);
-              }}
-            >
-              {n}
-            </button>
-          ))}
+        {[1, 3, 5, 7].map(n => (
           <button
-            className={`ft-moon${dark ? ' on' : ''}`}
-            title="Toggle dark mode"
-            onClick={() => setDark(d => !d)}
+            key={n}
+            className={`fontstep${n !== 1 && viewDays === n ? ' active' : ''}`}
+            title={n === 1 ? 'Focus mode' : n === 7 ? 'Show whole week' : `Show ${n} days`}
+            onClick={() => {
+              if (n === 1) { setFocusMode(true); return; }
+              setViewDays(n);
+            }}
           >
-            {Icons.moon()}
+            {n}
           </button>
-        </div>
-        <div className="ft-right">
-          <button className="ft-icon" title="Account">{Icons.user()}</button>
-          <button className="ft-icon" title="Help">{Icons.help()}</button>
-          <button className="go-pro-btn">GO PRO</button>
-        </div>
+        ))}
+        <button
+          className={`ft-moon${dark ? ' on' : ''}`}
+          title="Toggle dark mode"
+          onClick={() => setDark(d => !d)}
+        >
+          {Icons.moon()}
+        </button>
       </footer>
 
       {/* Add tab modal */}
@@ -396,6 +515,161 @@ function App() {
               </button>
               <button className="modal-btn modal-btn-ghost" onClick={closeAddTab}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete list confirmation modal */}
+      {deleteListTarget && (
+        <div className="modal-overlay" onMouseDown={() => setDeleteListTarget(null)}>
+          <div className="modal" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Delete list</h2>
+              <button className="modal-close" title="Close" onClick={() => setDeleteListTarget(null)}>
+                {Icons.close()}
+              </button>
+            </div>
+            <p className="modal-text">
+              Delete “{deleteListTarget.name}”? This can't be undone.
+            </p>
+            <div className="modal-actions">
+              <button className="modal-btn modal-btn-danger" onClick={confirmDeleteList}>
+                Delete
+              </button>
+              <button className="modal-btn modal-btn-ghost" onClick={() => setDeleteListTarget(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete tab confirmation modal */}
+      {deleteTabTarget && (
+        <div className="modal-overlay" onMouseDown={() => setDeleteTabTarget(null)}>
+          <div className="modal" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Delete tab</h2>
+              <button className="modal-close" title="Close" onClick={() => setDeleteTabTarget(null)}>
+                {Icons.close()}
+              </button>
+            </div>
+            <p className="modal-text">
+              Delete the “{deleteTabTarget.name}” tab and all of its lists? This can't be undone.
+            </p>
+            <div className="modal-actions">
+              <button className="modal-btn modal-btn-danger" onClick={confirmDeleteTab}>
+                Delete
+              </button>
+              <button className="modal-btn modal-btn-ghost" onClick={() => setDeleteTabTarget(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename tab modal */}
+      {renameTabOpen && (
+        <div className="modal-overlay" onMouseDown={() => setRenameTabOpen(false)}>
+          <div className="modal" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Edit tab name</h2>
+              <button className="modal-close" title="Close" onClick={() => setRenameTabOpen(false)}>
+                {Icons.close()}
+              </button>
+            </div>
+            <input
+              className="modal-input"
+              type="text"
+              autoFocus
+              value={renameTabName}
+              onChange={e => setRenameTabName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') saveRenameTab();
+                if (e.key === 'Escape') setRenameTabOpen(false);
+              }}
+            />
+            <div className="modal-actions">
+              <button className="modal-btn modal-btn-primary" onClick={saveRenameTab}>
+                Save
+              </button>
+              <button className="modal-btn modal-btn-ghost" onClick={() => setRenameTabOpen(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage lists modal */}
+      {manageListsOpen && (
+        <div className="modal-overlay" onMouseDown={() => setManageListsOpen(false)}>
+          <div className="modal modal-wide" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">{boards[manageBoard]}</h2>
+              <button className="modal-close" title="Close" onClick={() => setManageListsOpen(false)}>
+                {Icons.close()}
+              </button>
+            </div>
+            <div className="manage-lists">
+              {manageBoardLists.length === 0 && (
+                <div className="manage-empty">No lists in this tab yet.</div>
+              )}
+              {manageBoardLists.map((l, idx) => (
+                <div
+                  key={l.id}
+                  className="manage-list-row"
+                  draggable={editingListId !== l.id}
+                  onDragStart={(e) => { manageDragFrom.current = idx; e.dataTransfer.effectAllowed = 'move'; }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const from = manageDragFrom.current;
+                    if (from != null && from !== idx) reorderLists(from, idx);
+                    manageDragFrom.current = null;
+                  }}
+                >
+                  <span className="mlr-grip">{Icons.grip()}</span>
+                  {editingListId === l.id ? (
+                    <input
+                      className="mlr-input"
+                      autoFocus
+                      value={editingListName}
+                      onChange={e => setEditingListName(e.target.value)}
+                      onBlur={() => saveListName(l.id)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveListName(l.id);
+                        if (e.key === 'Escape') setEditingListId(null);
+                      }}
+                    />
+                  ) : (
+                    <span className="mlr-name">{l.name}</span>
+                  )}
+                  <div className="mlr-actions">
+                    <button
+                      className="mlr-btn"
+                      title="Rename list"
+                      onClick={() => { setEditingListId(l.id); setEditingListName(l.name); }}
+                    >
+                      {Icons.edit()}
+                    </button>
+                    <button
+                      className="mlr-btn"
+                      title="Delete list"
+                      onClick={() => removeListNow(l.id)}
+                    >
+                      {Icons.minus()}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="modal-btn modal-btn-primary" onClick={() => setManageListsOpen(false)}>
+                Done
               </button>
             </div>
           </div>
