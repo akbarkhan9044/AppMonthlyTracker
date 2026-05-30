@@ -485,11 +485,39 @@ a {
   z-index: 5;
 }
 
-.row:hover .row-text {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
+/* Hover reveals the full text as an overlay that paints over the rows
+   below WITHOUT changing any heights (the underlying row stays one line). */
+.row-text-overlay {
+  display: none;
 }
+.row:hover {
+  overflow: visible;
+  z-index: 20;
+}
+.row:hover .row-text {
+  visibility: hidden;
+}
+.row:hover .row-text-overlay {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 26px;
+  right: auto;
+  width: max-content;
+  max-width: calc(100% - 110px);
+  white-space: normal;
+  overflow-wrap: break-word;
+  padding: 6px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--bg);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  z-index: 30;
+}
+.row.done .row-text-overlay { display: none; }
+.listcard .row:hover .row-text-overlay { background: var(--surface); }
 
 .row.done .row-text {
   text-decoration: line-through;
@@ -570,6 +598,8 @@ a {
   opacity: 1;
   width: auto;
   overflow: visible;
+  position: relative;
+  z-index: 31;
 }
 
 .tool {

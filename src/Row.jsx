@@ -96,6 +96,7 @@ export function Row({ item, onToggle, onEdit, onDelete, onRecur, onHeader, onMov
           <span className="header-text" onDoubleClick={() => setEditing(true)}>{item.text}</span>
         )}
         <div className="row-tools">
+          <button className="tool tool-edit" title="Edit" onClick={() => setEditing(true)}>{Icons.edit()}</button>
           <button className="tool" title="Delete" onClick={onDelete}>{Icons.minus()}</button>
         </div>
       </div>
@@ -126,9 +127,11 @@ export function Row({ item, onToggle, onEdit, onDelete, onRecur, onHeader, onMov
           {linkify(item.text)}
         </span>
       )}
+      {!editing && <span className="row-text-overlay" aria-hidden="true">{linkify(item.text)}</span>}
       <div className="row-tools">
         {item.recur && <span className="tool tool-static recur-on" title="Repeats">{Icons.repeat()}</span>}
         <button className="tool grip" title="Drag to reorder" tabIndex={-1}>{Icons.dragHandle()}</button>
+        <button className="tool tool-edit" title="Edit" onClick={() => setEditing(true)}>{Icons.edit()}</button>
         <button className="tool tool-delete" title="Delete" onClick={onDelete}>{Icons.minus()}</button>
       </div>
     </div>
