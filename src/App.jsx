@@ -7,6 +7,7 @@ import {
   dayKey, addDays, today0, sameDay, uid,
   loadStore, saveStore, SEED_BOARDS, FONT_STEPS
 } from './utils';
+import { computeStats } from './stats';
 import './App.css';
 
 function App() {
@@ -18,6 +19,10 @@ function App() {
   });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const dark = theme === 'dark';
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const [aiSummary, setAiSummary] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
   const [fontIdx, setFontIdx] = useState(() => Number(localStorage.getItem('dayboard.font')) || 5);
   const [anchor, setAnchor] = useState(() => today0());
   const [viewDays, setViewDays] = useState(() => {
@@ -288,6 +293,38 @@ function App() {
   const currentBoardLists = store.listsByBoard?.[board] || [];
   const manageBoardLists = store.listsByBoard?.[manageBoard] || [];
 
+  // Productivity insights (computed locally, no AI)
+  const stats = useMemo(() => computeStats(store, boards), [store, boards]);
+  const maxDay = useMemo(() => Math.max(1, ...stats.last7.map(d => d.total)), [stats]);
+
+  const generateAiSummary = useCallback(async () => {
+    setAiLoading(true);
+    setAiError('');
+    setAiSummary('');
+    try {
+      const res = await fetch('/api/summary', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ stats }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 404) {
+        throw new Error('FUNCTION_MISSING');
+      }
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+      setAiSummary(data.summary || 'No summary returned.');
+    } catch (e) {
+      const msg = e.message || '';
+      setAiError(
+        msg === 'FUNCTION_MISSING' || msg.includes('Failed to fetch') || msg.includes('JSON') || msg.includes('Unexpected token')
+          ? 'AI summary runs on a Netlify function. Deploy the site (with ANTHROPIC_API_KEY set in Netlify), or run `netlify dev` locally — plain `vite` doesn’t serve functions.'
+          : msg || 'Could not generate summary.'
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  }, [stats]);
+
   const dayItems = (d) => {
     const key = dayKey(d);
     return store.days[key] || [];
@@ -525,6 +562,13 @@ function App() {
           </button>
         ))}
         <button
+          className="ft-moon"
+          title="Insights"
+          onClick={() => setInsightsOpen(true)}
+        >
+          {Icons.chart()}
+        </button>
+        <button
           className={`ft-moon${dark ? ' on' : ''}`}
           title="Toggle dark mode"
           onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
@@ -748,6 +792,82 @@ function App() {
             <div className="modal-actions">
               <button className="modal-btn modal-btn-primary" onClick={() => setManageListsOpen(false)}>
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Insights modal */}
+      {insightsOpen && (
+        <div className="modal-overlay" onMouseDown={() => setInsightsOpen(false)}>
+          <div className="modal modal-wide" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Insights</h2>
+              <button className="modal-close" title="Close" onClick={() => setInsightsOpen(false)}>
+                {Icons.close()}
+              </button>
+            </div>
+
+            <div className="insights-grid">
+              <div className="stat-card stat-streak">
+                <span className="stat-flame">{Icons.flame()}</span>
+                <div className="stat-num">{stats.streak}</div>
+                <div className="stat-label">day streak</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-num">{stats.today.done}/{stats.today.total}</div>
+                <div className="stat-label">done today</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-num">{stats.week.done}/{stats.week.total}</div>
+                <div className="stat-label">this week · {stats.week.rate}%</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-num">{stats.allTime.done}</div>
+                <div className="stat-label">completed all-time</div>
+              </div>
+            </div>
+
+            <div className="insights-section-title">Last 7 days</div>
+            <div className="spark">
+              {stats.last7.map((d) => (
+                <div className="spark-col" key={d.key} title={`${d.label}: ${d.done}/${d.total} done`}>
+                  <div className="spark-bar-wrap">
+                    <div className="spark-bar-total" style={{ height: `${(d.total / maxDay) * 100}%` }} />
+                    <div className="spark-bar-done" style={{ height: `${(d.done / maxDay) * 100}%` }} />
+                  </div>
+                  <div className="spark-label">{d.label[0]}</div>
+                </div>
+              ))}
+            </div>
+
+            {stats.boards.some(b => b.total > 0) && (
+              <>
+                <div className="insights-section-title">Effort by board</div>
+                <div className="effort-list">
+                  {stats.boards.filter(b => b.total > 0).map((b) => (
+                    <div className="effort-row" key={b.name}>
+                      <span className="effort-name">{b.name}</span>
+                      <div className="effort-bar">
+                        <div className="effort-bar-done" style={{ width: `${(b.done / b.total) * 100}%` }} />
+                      </div>
+                      <span className="effort-count">{b.done}/{b.total}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="insights-section-title">AI summary</div>
+            <div className="ai-box">
+              {aiSummary && <p className="ai-text">{aiSummary}</p>}
+              {aiError && <p className="ai-error">{aiError}</p>}
+              {!aiSummary && !aiError && !aiLoading && (
+                <p className="ai-hint">Get a short written update on your streak, today, this week, and where your effort is going.</p>
+              )}
+              <button className="modal-btn modal-btn-primary" onClick={generateAiSummary} disabled={aiLoading}>
+                {aiLoading ? 'Thinking…' : aiSummary ? 'Regenerate' : 'Generate AI summary'}
               </button>
             </div>
           </div>
