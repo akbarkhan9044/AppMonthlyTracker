@@ -20,7 +20,10 @@ function App() {
   const dark = theme === 'dark';
   const [fontIdx, setFontIdx] = useState(() => Number(localStorage.getItem('dayboard.font')) || 5);
   const [anchor, setAnchor] = useState(() => today0());
-  const [viewDays, setViewDays] = useState(() => Number(localStorage.getItem('dayboard.view')) || 5);
+  const [viewDays, setViewDays] = useState(() => {
+    const v = Number(localStorage.getItem('dayboard.view')) || 5;
+    return v > 5 ? 5 : v;
+  });
   const [board, setBoard] = useState(0);
   const [boards, setBoards] = useState(SEED_BOARDS);
   const [query, setQuery] = useState('');
@@ -508,11 +511,11 @@ function App() {
 
       {/* Footer */}
       <footer className="footer">
-        {[1, 3, 5, 7].map(n => (
+        {[1, 3, 5].map(n => (
           <button
             key={n}
             className={`fontstep${n !== 1 && viewDays === n ? ' active' : ''}`}
-            title={n === 1 ? 'Focus mode' : n === 7 ? 'Show whole week' : `Show ${n} days`}
+            title={n === 1 ? 'Focus mode' : `Show ${n} days`}
             onClick={() => {
               if (n === 1) { setFocusMode(true); return; }
               setViewDays(n);
