@@ -11,7 +11,13 @@ import './App.css';
 
 function App() {
   const [store, setStore] = useState(loadStore);
-  const [dark, setDark] = useState(() => localStorage.getItem('dayboard.dark') === '1');
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('dayboard.theme');
+    if (saved) return saved;
+    return localStorage.getItem('dayboard.dark') === '1' ? 'dark' : 'light';
+  });
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const dark = theme === 'dark';
   const [fontIdx, setFontIdx] = useState(() => Number(localStorage.getItem('dayboard.font')) || 5);
   const [anchor, setAnchor] = useState(() => today0());
   const [viewDays, setViewDays] = useState(() => Number(localStorage.getItem('dayboard.view')) || 5);
@@ -34,6 +40,7 @@ function App() {
   const [editingListId, setEditingListId] = useState(null);
   const [editingListName, setEditingListName] = useState('');
   const manageDragFrom = useRef(null);
+  const searchRef = useRef(null);
 
   const createTab = useCallback(() => {
     const trimmed = newTabName.trim();
@@ -166,6 +173,18 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [focusMode]);
 
+  // Close the search popup when clicking anywhere outside it
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onDown = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [searchOpen]);
+
   const fmtClock = (s) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
@@ -179,16 +198,17 @@ function App() {
   }, []);
 
   useEffect(() => { saveStore(store); }, [store]);
-  useEffect(() => { localStorage.setItem('dayboard.dark', dark ? '1' : '0'); }, [dark]);
+  useEffect(() => { localStorage.setItem('dayboard.theme', theme); }, [theme]);
   useEffect(() => { localStorage.setItem('dayboard.font', String(fontIdx)); }, [fontIdx]);
   useEffect(() => { localStorage.setItem('dayboard.view', String(viewDays)); }, [viewDays]);
 
   // Apply theme + font size
   useEffect(() => {
     const r = document.documentElement;
-    r.classList.toggle('theme-dark', dark);
+    ['theme-dark', 'theme-mint', 'theme-peach', 'theme-lavender', 'theme-sky', 'theme-butter']
+      .forEach(c => r.classList.toggle(c, c === `theme-${theme}`));
     r.style.setProperty('--base-size', FONT_STEPS[fontIdx] + 'px');
-  }, [dark, fontIdx]);
+  }, [theme, fontIdx]);
 
   const days = useMemo(
     () => Array.from({ length: viewDays }, (_, i) => addDays(anchor, i)),
@@ -270,6 +290,21 @@ function App() {
     return store.days[key] || [];
   };
 
+  // Jump to a search result's day or list
+  const goToResult = (r) => {
+    if (r.type === 'day') {
+      const [y, m, d] = r.dateKey.split('-').map(Number);
+      const target = new Date(y, m - 1, d);
+      target.setHours(0, 0, 0, 0);
+      setAnchor(target);
+    } else {
+      setBoard(r.boardIdx);
+      setListsCollapsed(false);
+    }
+    setSearchOpen(false);
+    setQuery('');
+  };
+
   // Search across everything
   const results = useMemo(() => {
     if (!query.trim()) return null;
@@ -278,14 +313,14 @@ function App() {
     Object.entries(store.days).forEach(([k, arr]) =>
       arr.forEach(it => {
         if (!it.header && it.text.toLowerCase().includes(q))
-          out.push({ where: k, text: it.text, done: it.done });
+          out.push({ type: 'day', dateKey: k, where: k, text: it.text, done: it.done });
       })
     );
-    Object.values(store.listsByBoard || {}).forEach(lists =>
+    Object.entries(store.listsByBoard || {}).forEach(([boardIdx, lists]) =>
       lists.forEach(l =>
         l.items.forEach(it => {
           if (!it.header && it.text.toLowerCase().includes(q))
-            out.push({ where: l.name, text: it.text, done: it.done });
+            out.push({ type: 'list', boardIdx: Number(boardIdx), where: l.name, text: it.text, done: it.done });
         })
       )
     );
@@ -296,7 +331,7 @@ function App() {
     <div className="app">
       {/* Top bar */}
       <header className="topbar">
-        <div className="tb-left relative">
+        <div className="tb-left relative" ref={searchRef}>
           <button
             className={`icon-btn${searchOpen ? ' active' : ''}`}
             title="Search"
@@ -304,7 +339,10 @@ function App() {
           >
             {Icons.search()}
           </button>
-          <button className="today-btn" onClick={() => setAnchor(today0())}>
+          <button
+            className="today-btn"
+            onClick={() => { setAnchor(today0()); setSearchOpen(false); }}
+          >
             TODAY
           </button>
           {searchOpen && (
@@ -319,17 +357,21 @@ function App() {
                 <div className="search-results">
                   {results.length === 0 && <div className="sr-empty">No matches</div>}
                   {results.map((r, i) => (
-                    <div key={i} className={`sr-item${r.done ? ' done' : ''}`}>
+                    <button
+                      key={i}
+                      className={`sr-item${r.done ? ' done' : ''}`}
+                      onClick={() => goToResult(r)}
+                    >
                       <span className="sr-text">{r.text}</span>
                       <span className="sr-where">{r.where}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
             </div>
           )}
         </div>
-        <div className="wordmark">TEUXDEUX<span className="asterisk">*</span></div>
+        <div className="wordmark">Atomic Tracker<span className="asterisk">*</span></div>
         <div className="tb-right">
           <div className="nav-arrows">
             <button className="icon-btn" title="Jump back a week" onClick={() => navigateDate(-7)}>
@@ -482,10 +524,43 @@ function App() {
         <button
           className={`ft-moon${dark ? ' on' : ''}`}
           title="Toggle dark mode"
-          onClick={() => setDark(d => !d)}
+          onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
         >
           {Icons.moon()}
         </button>
+        <div className="palette-wrap">
+          <button
+            className={`ft-moon${paletteOpen ? ' on' : ''}`}
+            title="Background color"
+            onClick={() => setPaletteOpen(o => !o)}
+          >
+            {Icons.palette()}
+          </button>
+          {paletteOpen && (
+            <>
+              <div className="menu-backdrop" onClick={() => setPaletteOpen(false)} />
+              <div className="palette-pop">
+                {[
+                  { id: 'light', label: 'Default', color: '#ffffff' },
+                  { id: 'mint', label: 'Mint', color: '#effaf3' },
+                  { id: 'peach', label: 'Peach', color: '#fff4ec' },
+                  { id: 'lavender', label: 'Lavender', color: '#f3f0fc' },
+                  { id: 'sky', label: 'Sky', color: '#eef6fd' },
+                  { id: 'butter', label: 'Butter', color: '#fdf8e8' },
+                  { id: 'dark', label: 'Dark', color: '#111827' },
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    className={`swatch${theme === s.id ? ' active' : ''}`}
+                    title={s.label}
+                    style={{ background: s.color }}
+                    onClick={() => { setTheme(s.id); setPaletteOpen(false); }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </footer>
 
       {/* Add tab modal */}
@@ -683,7 +758,7 @@ function App() {
             <button className="focus-esc" onClick={() => setFocusMode(false)}>
               ESC
             </button>
-            <div className="wordmark focus-wordmark">TEUXDEUX<span className="asterisk">*</span></div>
+            <div className="wordmark focus-wordmark">Atomic Tracker<span className="asterisk">*</span></div>
             <div className="pomo">
               {[15, 25, 30, 45].map(m => (
                 <button

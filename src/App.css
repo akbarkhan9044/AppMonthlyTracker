@@ -2,6 +2,7 @@
   --accent: #4ade80;
   --accent-soft: #dcfce7;
   --bg: #ffffff;
+  --surface: #f9fafb;
   --panel: #ffffff;
   --ink: #000000;
   --ink-soft: #6b7280;
@@ -22,6 +23,7 @@
   --accent: #4ade80;
   --accent-soft: #166534;
   --bg: #111827;
+  --surface: #1a1f2e;
   --panel: #1f2937;
   --ink: #ffffff;
   --ink-soft: #9ca3af;
@@ -33,6 +35,67 @@
   --header-chip-ink: #9ca3af;
   --done: #4b5563;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Playful pastel background themes (light text stays dark) */
+.theme-mint {
+  --accent: #1f8a5b;
+  --accent-soft: #c9efdd;
+  --bg: #effaf3;
+  --surface: #e3f5ea;
+  --panel: #f5fcf8;
+  --line: #cfead9;
+  --line-strong: #b6dcc6;
+  --header-chip: #d8f1e3;
+  --header-chip-ink: #4b7a64;
+}
+
+.theme-peach {
+  --accent: #e0731f;
+  --accent-soft: #ffe0cc;
+  --bg: #fff4ec;
+  --surface: #ffe9dc;
+  --panel: #fff9f4;
+  --line: #f7ddca;
+  --line-strong: #f0cbae;
+  --header-chip: #ffe4d3;
+  --header-chip-ink: #9a6a48;
+}
+
+.theme-lavender {
+  --accent: #6d3bf0;
+  --accent-soft: #e4dbfb;
+  --bg: #f3f0fc;
+  --surface: #ebe5fb;
+  --panel: #f8f6fe;
+  --line: #e0d7f5;
+  --line-strong: #cfc1ef;
+  --header-chip: #e7defb;
+  --header-chip-ink: #6f6092;
+}
+
+.theme-sky {
+  --accent: #2a6fdb;
+  --accent-soft: #d5e7fb;
+  --bg: #eef6fd;
+  --surface: #e1eefb;
+  --panel: #f6fbff;
+  --line: #d2e6f6;
+  --line-strong: #bcd8f1;
+  --header-chip: #ddeefb;
+  --header-chip-ink: #5b7799;
+}
+
+.theme-butter {
+  --accent: #c79a1e;
+  --accent-soft: #faedc2;
+  --bg: #fdf8e8;
+  --surface: #faf0d4;
+  --panel: #fffcf3;
+  --line: #f0e4bd;
+  --line-strong: #e6d49b;
+  --header-chip: #f7ecca;
+  --header-chip-ink: #8a7636;
 }
 
 * {
@@ -204,11 +267,13 @@ a {
 
 .sr-item {
   display: flex;
+  width: 100%;
+  text-align: left;
   justify-content: space-between;
   gap: 12px;
   padding: 8px 10px;
   border-radius: 6px;
-  cursor: default;
+  cursor: pointer;
 }
 
 .sr-item:hover {
@@ -813,12 +878,8 @@ a {
   grid-template-columns: repeat(var(--cols, 5), 1fr);
   gap: 0;
   padding: 24px 0 20px;
-  background: #f9fafb;
+  background: var(--surface);
   min-height: 200px;
-}
-
-.theme-dark .lists {
-  background: #1a1f2e;
 }
 
 .listcard {
@@ -917,11 +978,7 @@ a {
   gap: 8px;
   padding: 10px 20px;
   border-top: 1px solid var(--line);
-  background: #f9fafb;
-}
-
-.theme-dark .footer {
-  background: #1a1f2e;
+  background: var(--surface);
 }
 
 .fontstep {
@@ -960,6 +1017,42 @@ a {
 .ft-moon.on {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.palette-wrap {
+  position: relative;
+  display: flex;
+}
+
+.palette-pop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 71;
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+}
+
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.swatch:hover {
+  transform: scale(1.12);
+}
+
+.swatch.active {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent);
 }
 
 /* Responsive */
