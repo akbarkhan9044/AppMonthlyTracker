@@ -37,6 +37,44 @@ function App() {
     setAddTabOpen(false);
   }, []);
 
+  // Focus mode + Pomodoro timer
+  const [focusMode, setFocusMode] = useState(false);
+  const [pomoMinutes, setPomoMinutes] = useState(15);
+  const [pomoRemaining, setPomoRemaining] = useState(15 * 60);
+  const [pomoRunning, setPomoRunning] = useState(false);
+
+  const selectPomo = useCallback((m) => {
+    setPomoMinutes(m);
+    setPomoRemaining(m * 60);
+    setPomoRunning(false);
+  }, []);
+
+  // Tick the timer when running
+  useEffect(() => {
+    if (!pomoRunning) return;
+    const id = setInterval(() => {
+      setPomoRemaining(r => {
+        if (r <= 1) {
+          setPomoRunning(false);
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [pomoRunning]);
+
+  // Exit focus mode on Escape
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e) => { if (e.key === 'Escape') setFocusMode(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focusMode]);
+
+  const fmtClock = (s) =>
+    `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
   // Smooth date navigation
   const navigateDate = useCallback((delta) => {
     setTransitioning(true);
@@ -307,7 +345,11 @@ function App() {
             <button
               key={n}
               className={`fontstep${fontIdx === n ? ' active' : ''}`}
-              onClick={() => setFontIdx(n)}
+              title={n === 1 ? 'Focus mode' : `Text size ${n}`}
+              onClick={() => {
+                if (n === 1) { setFocusMode(true); return; }
+                setFontIdx(n);
+              }}
             >
               {n}
             </button>
@@ -356,6 +398,55 @@ function App() {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Focus mode */}
+      {focusMode && (
+        <div className="focus">
+          <div className="focus-top">
+            <button className="focus-esc" onClick={() => setFocusMode(false)}>
+              ESC
+            </button>
+            <div className="wordmark focus-wordmark">TEUXDEUX<span className="asterisk">*</span></div>
+            <div className="pomo">
+              {[15, 25, 30, 45].map(m => (
+                <button
+                  key={m}
+                  className={`pomo-time${pomoMinutes === m ? ' active' : ''}`}
+                  onClick={() => selectPomo(m)}
+                >
+                  {pomoMinutes === m ? fmtClock(pomoRemaining) : fmtClock(m * 60)}
+                </button>
+              ))}
+              <button
+                className="pomo-start"
+                onClick={() => {
+                  if (pomoRemaining === 0) setPomoRemaining(pomoMinutes * 60);
+                  setPomoRunning(r => !r);
+                }}
+              >
+                {pomoRunning ? 'Pause' : 'Start'}
+              </button>
+            </div>
+          </div>
+
+          <div className="focus-card">
+            {(() => {
+              const d = today0();
+              const key = dayKey(d);
+              const items = dayItems(d);
+              return (
+                <DayColumn
+                  date={d}
+                  isToday
+                  hasItems={items.length > 0}
+                  items={items}
+                  A={dayActions(key)}
+                />
+              );
+            })()}
           </div>
         </div>
       )}

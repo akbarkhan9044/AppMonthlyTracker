@@ -1157,3 +1157,101 @@ a {
 .modal-btn-ghost:hover {
   background: var(--line);
 }
+
+/* Focus mode */
+.focus {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+}
+
+.focus-top {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+}
+
+.focus-esc {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.focus-esc:hover {
+  opacity: 0.6;
+}
+
+.focus-wordmark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pomo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pomo-time {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--ink-faint);
+  background: var(--header-chip);
+  font-variant-numeric: tabular-nums;
+}
+
+.pomo-time:hover {
+  color: var(--ink);
+}
+
+.pomo-time.active {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.pomo-start {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--bg);
+  margin-left: 4px;
+}
+
+.pomo-start:hover {
+  opacity: 0.85;
+}
+
+.focus-card {
+  margin: auto;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+  padding: 40px 44px;
+}
+
+/* The reused DayColumn inside focus mode shouldn't have column borders */
+.focus-card .col {
+  border: none;
+  padding: 0;
+}
