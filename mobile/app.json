@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Atomic Tracker",
+    "slug": "atomic-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "ios": { "supportsTablet": true },
+    "android": {},
+    "extra": {
+      "apiBase": "https://trackerakbar.netlify.app"
+    }
+  }
+}

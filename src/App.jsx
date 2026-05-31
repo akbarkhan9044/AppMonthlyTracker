@@ -9,11 +9,25 @@ import {
 } from './utils';
 import { computeStats } from './stats';
 import { apiUrl } from './config';
+import { cloudEnabled } from './supabaseClient';
+import {
+  getSession, onAuthChange, sendMagicLink, signOut,
+  fetchRemote, pushRemote, subscribeRemote,
+} from './cloud';
 import './App.css';
 
 function App() {
   const [store, setStore] = useState(() => rolloverStore(loadStore()));
   const [midnightTick, setMidnightTick] = useState(0);
+  const storeRef = useRef(store);
+  useEffect(() => { storeRef.current = store; }, [store]);
+  // Cloud sync (Supabase)
+  const [session, setSession] = useState(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authStatus, setAuthStatus] = useState('idle'); // idle | sending | sent
+  const [authError, setAuthError] = useState('');
+  const lastSyncedRef = useRef(null);
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('dayboard.theme');
     if (saved) return saved;
@@ -220,6 +234,67 @@ function App() {
   }, []);
 
   useEffect(() => { saveStore(store); }, [store]);
+
+  // --- Cloud sync (Supabase) ---
+  // Track the auth session.
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    getSession().then(setSession);
+    return onAuthChange(setSession);
+  }, []);
+
+  // On login: pull cloud data (or seed it from local), then subscribe to realtime.
+  useEffect(() => {
+    if (!cloudEnabled || !session) return;
+    let active = true;
+    let unsub = () => {};
+    (async () => {
+      try {
+        const remote = await fetchRemote(session.user.id);
+        if (!active) return;
+        if (remote?.data && Object.keys(remote.data).length) {
+          lastSyncedRef.current = JSON.stringify(remote.data);
+          setStore(remote.data);
+        } else {
+          lastSyncedRef.current = JSON.stringify(storeRef.current);
+          await pushRemote(session.user.id, storeRef.current);
+        }
+      } catch (e) { /* stay local on error */ }
+      if (!active) return;
+      unsub = subscribeRemote(session.user.id, (incoming) => {
+        lastSyncedRef.current = JSON.stringify(incoming);
+        setStore(incoming);
+      });
+    })();
+    return () => { active = false; unsub(); };
+  }, [session]);
+
+  // Push local changes to the cloud (debounced), skipping echoes of what we
+  // just received from realtime.
+  useEffect(() => {
+    if (!cloudEnabled || !session) return;
+    const json = JSON.stringify(store);
+    if (json === lastSyncedRef.current) return;
+    const id = setTimeout(() => {
+      lastSyncedRef.current = json;
+      pushRemote(session.user.id, store).catch(() => {});
+    }, 800);
+    return () => clearTimeout(id);
+  }, [store, session]);
+
+  const sendLoginLink = useCallback(async () => {
+    const email = authEmail.trim();
+    if (!email) return;
+    setAuthStatus('sending');
+    setAuthError('');
+    try {
+      await sendMagicLink(email);
+      setAuthStatus('sent');
+    } catch (e) {
+      setAuthError(e.message || 'Could not send the link.');
+      setAuthStatus('idle');
+    }
+  }, [authEmail]);
 
   // At midnight, roll unfinished tasks forward to the new day (and reschedule).
   useEffect(() => {
@@ -679,6 +754,15 @@ function App() {
         >
           {Icons.target()}
         </button>
+        {cloudEnabled && (
+          <button
+            className={`ft-moon${session ? ' on' : ''}`}
+            title={session ? `Synced — ${session.user.email}` : 'Sign in to sync'}
+            onClick={() => setAuthOpen(true)}
+          >
+            {Icons.user()}
+          </button>
+        )}
         <button
           className={`ft-moon${dark ? ' on' : ''}`}
           title="Toggle dark mode"
@@ -1136,6 +1220,68 @@ function App() {
                     onClick={() => setChallenge(c => ({ ...c, startKey: null }))}
                   >
                     Reset challenge
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sync / account modal */}
+      {authOpen && (
+        <div className="modal-overlay" onMouseDown={() => setAuthOpen(false)}>
+          <div className="modal" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">{session ? 'Sync' : 'Sign in to sync'}</h2>
+              <button className="modal-close" title="Close" onClick={() => setAuthOpen(false)}>
+                {Icons.close()}
+              </button>
+            </div>
+
+            {session ? (
+              <>
+                <p className="ai-hint">
+                  Signed in as <strong>{session.user.email}</strong>. Your to-dos sync across
+                  every device you sign in on.
+                </p>
+                <div className="modal-actions">
+                  <button
+                    className="modal-btn modal-btn-ghost"
+                    onClick={async () => { await signOut(); setAuthOpen(false); }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </>
+            ) : authStatus === 'sent' ? (
+              <p className="ai-hint">
+                Check your inbox — we sent a sign-in link to <strong>{authEmail}</strong>.
+                Open it on this device (or any device) to sync your to-dos.
+              </p>
+            ) : (
+              <>
+                <p className="ai-hint">
+                  Enter your email and we'll send a one-tap sign-in link. Signing in syncs your
+                  to-dos across web and the app.
+                </p>
+                <input
+                  className="modal-input"
+                  type="email"
+                  autoFocus
+                  placeholder="you@example.com"
+                  value={authEmail}
+                  onChange={e => setAuthEmail(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') sendLoginLink(); }}
+                />
+                {authError && <p className="ai-error">{authError}</p>}
+                <div className="modal-actions">
+                  <button
+                    className="modal-btn modal-btn-primary"
+                    onClick={sendLoginLink}
+                    disabled={authStatus === 'sending'}
+                  >
+                    {authStatus === 'sending' ? 'Sending…' : 'Send sign-in link'}
                   </button>
                 </div>
               </>
