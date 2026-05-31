@@ -25,7 +25,9 @@ export const handler = async (event) => {
     `You are a concise, encouraging productivity coach inside a to-do app called "Atomic Tracker". ` +
     `Using the user's stats JSON below, write a short daily/weekly update of 2-4 sentences. ` +
     `Mention: their current streak, how today and this week are going (completed vs total), ` +
-    `and which board/area they're putting the most effort into. Use the real numbers, be warm but not cheesy, ` +
+    `and which board/area they're putting the most effort into. ` +
+    `If a "coding" field is present (WakaTime data), also weave in how much they coded today/this week and their top project or language. ` +
+    `Use the real numbers, be warm but not cheesy, ` +
     `and offer one small, concrete nudge. Plain text only — no markdown headers or bullet lists.\n\n` +
     `Stats:\n${JSON.stringify(stats)}`;
 

@@ -23,6 +23,9 @@ function App() {
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [waka, setWaka] = useState(null);
+  const [wakaLoading, setWakaLoading] = useState(false);
+  const [wakaError, setWakaError] = useState('');
   const [fontIdx, setFontIdx] = useState(() => Number(localStorage.getItem('dayboard.font')) || 5);
   const [anchor, setAnchor] = useState(() => today0());
   const [viewDays, setViewDays] = useState(() => {
@@ -297,15 +300,44 @@ function App() {
   const stats = useMemo(() => computeStats(store, boards), [store, boards]);
   const maxDay = useMemo(() => Math.max(1, ...stats.last7.map(d => d.total)), [stats]);
 
+  const fetchWaka = useCallback(async () => {
+    setWakaLoading(true);
+    setWakaError('');
+    try {
+      const res = await fetch('/api/wakatime');
+      const isJson = (res.headers.get('content-type') || '').includes('application/json');
+      if (res.status === 404 || !isJson) throw new Error('FUNCTION_MISSING');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+      setWaka(data);
+    } catch (e) {
+      const msg = e.message || '';
+      setWaka(null);
+      setWakaError(
+        msg === 'FUNCTION_MISSING' || msg.includes('Failed to fetch') || msg.includes('JSON')
+          ? 'Coding stats run on a Netlify function. Deploy with WAKATIME_API_KEY set (or run `netlify dev`).'
+          : msg || 'Could not load coding stats.'
+      );
+    } finally {
+      setWakaLoading(false);
+    }
+  }, []);
+
+  // Load WakaTime stats when the Insights panel opens
+  useEffect(() => {
+    if (insightsOpen && !waka && !wakaLoading) fetchWaka();
+  }, [insightsOpen, waka, wakaLoading, fetchWaka]);
+
   const generateAiSummary = useCallback(async () => {
     setAiLoading(true);
     setAiError('');
     setAiSummary('');
     try {
+      const payload = waka ? { ...stats, coding: waka } : stats;
       const res = await fetch('/api/summary', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ stats }),
+        body: JSON.stringify({ stats: payload }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 404) {
@@ -323,7 +355,7 @@ function App() {
     } finally {
       setAiLoading(false);
     }
-  }, [stats]);
+  }, [stats, waka]);
 
   const dayItems = (d) => {
     const key = dayKey(d);
@@ -856,6 +888,48 @@ function App() {
                     </div>
                   ))}
                 </div>
+              </>
+            )}
+
+            <div className="insights-section-title">Coding time (WakaTime)</div>
+            {wakaLoading && <div className="ai-hint">Loading coding stats…</div>}
+            {wakaError && !wakaLoading && <div className="ai-error">{wakaError}</div>}
+            {waka && !wakaLoading && (
+              <>
+                <div className="insights-grid insights-grid-3">
+                  <div className="stat-card">
+                    <div className="stat-num">{waka.todayText || '0m'}</div>
+                    <div className="stat-label">coded today</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-num">{waka.weekText || '0m'}</div>
+                    <div className="stat-label">this week</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-num">{waka.dailyAverageText || '0m'}</div>
+                    <div className="stat-label">daily average</div>
+                  </div>
+                </div>
+                {waka.projects?.length > 0 && (
+                  <div className="effort-list" style={{ marginTop: '12px' }}>
+                    {waka.projects.map((p) => (
+                      <div className="effort-row" key={p.name}>
+                        <span className="effort-name">{p.name}</span>
+                        <div className="effort-bar">
+                          <div className="effort-bar-done" style={{ width: `${p.percent || 0}%` }} />
+                        </div>
+                        <span className="effort-count">{p.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {waka.languages?.length > 0 && (
+                  <div className="waka-langs">
+                    {waka.languages.map((l) => (
+                      <span className="waka-lang" key={l.name}>{l.name} · {l.text}</span>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 

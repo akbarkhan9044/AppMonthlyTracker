@@ -3,10 +3,15 @@
   publish = "dist"
   functions = "netlify/functions"
 
-# Friendly path for the AI summary function
+# Friendly paths for the functions
 [[redirects]]
   from = "/api/summary"
   to = "/.netlify/functions/summary"
+  status = 200
+
+[[redirects]]
+  from = "/api/wakatime"
+  to = "/.netlify/functions/wakatime"
   status = 200
 
 # SPA fallback

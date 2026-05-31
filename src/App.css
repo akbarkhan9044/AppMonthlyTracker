@@ -1456,6 +1456,26 @@ a {
   margin-bottom: 8px;
 }
 
+.insights-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.waka-langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.waka-lang {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  background: var(--header-chip);
+  border-radius: 20px;
+  padding: 4px 10px;
+}
+
 .stat-card {
   position: relative;
   background: var(--surface);
