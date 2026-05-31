@@ -3,16 +3,32 @@
 // (Get it from wakatime.com → Settings → Account → API Key)
 const BASE = 'https://wakatime.com/api/v1';
 
+// CORS so the mobile app (a different origin) can call this endpoint.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'content-type, authorization',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+};
+
+const json = (statusCode, obj) => ({
+  statusCode,
+  headers: { ...CORS, 'content-type': 'application/json' },
+  body: JSON.stringify(obj),
+});
+
 function ymd(d) {
   return d.getUTCFullYear() + '-' +
     String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
     String(d.getUTCDate()).padStart(2, '0');
 }
 
-export const handler = async () => {
+export const handler = async (event) => {
+  if (event?.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: CORS, body: '' };
+  }
   const key = process.env.WAKATIME_API_KEY;
   if (!key) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'WAKATIME_API_KEY is not configured on the server.' }) };
+    return json(500, { error: 'WAKATIME_API_KEY is not configured on the server.' });
   }
   const auth = 'Basic ' + Buffer.from(key).toString('base64');
   const headers = { Authorization: auth };
@@ -29,7 +45,7 @@ export const handler = async () => {
 
     if (!summariesRes.ok) {
       const detail = await summariesRes.text();
-      return { statusCode: summariesRes.status, body: JSON.stringify({ error: 'WakaTime API error', detail }) };
+      return json(summariesRes.status, { error: 'WakaTime API error', detail });
     }
 
     const summaries = await summariesRes.json();
@@ -54,8 +70,8 @@ export const handler = async () => {
       languages: (stats.languages || []).slice(0, 5).map((l) => ({ name: l.name, text: l.text, percent: l.percent })),
     };
 
-    return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(out) };
+    return json(200, out);
   } catch (e) {
-    return { statusCode: 502, body: JSON.stringify({ error: 'Failed to reach WakaTime.', detail: String(e) }) };
+    return json(502, { error: 'Failed to reach WakaTime.', detail: String(e) });
   }
 };

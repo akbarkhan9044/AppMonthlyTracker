@@ -2,23 +2,40 @@
 // Set the key in Netlify: Site settings → Environment variables → ANTHROPIC_API_KEY
 const MODEL = 'claude-haiku-4-5-20251001';
 
+// CORS so the mobile app (a different origin) can call this endpoint.
+// Lock Allow-Origin down to your app's origin in production if you prefer.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'content-type, authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+const json = (statusCode, obj) => ({
+  statusCode,
+  headers: { ...CORS, 'content-type': 'application/json' },
+  body: JSON.stringify(obj),
+});
+
 export const handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: CORS, body: '' };
+  }
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+    return json(405, { error: 'Method not allowed' });
   }
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'ANTHROPIC_API_KEY is not configured on the server.' }) };
+    return json(500, { error: 'ANTHROPIC_API_KEY is not configured on the server.' });
   }
 
   let stats;
   try {
     stats = JSON.parse(event.body || '{}').stats;
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid request body.' }) };
+    return json(400, { error: 'Invalid request body.' });
   }
   if (!stats) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Missing stats.' }) };
+    return json(400, { error: 'Missing stats.' });
   }
 
   const prompt =
@@ -48,16 +65,12 @@ export const handler = async (event) => {
 
     if (!resp.ok) {
       const detail = await resp.text();
-      return { statusCode: resp.status, body: JSON.stringify({ error: 'Claude API error', detail }) };
+      return json(resp.status, { error: 'Claude API error', detail });
     }
     const data = await resp.json();
     const summary = (data.content || []).map((b) => b.text || '').join('').trim();
-    return {
-      statusCode: 200,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ summary }),
-    };
+    return json(200, { summary });
   } catch (e) {
-    return { statusCode: 502, body: JSON.stringify({ error: 'Failed to reach Claude.', detail: String(e) }) };
+    return json(502, { error: 'Failed to reach Claude.', detail: String(e) });
   }
 };

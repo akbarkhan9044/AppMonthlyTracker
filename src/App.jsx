@@ -8,6 +8,7 @@ import {
   loadStore, saveStore, rolloverStore, SEED_BOARDS, FONT_STEPS
 } from './utils';
 import { computeStats } from './stats';
+import { apiUrl } from './config';
 import './App.css';
 
 function App() {
@@ -359,7 +360,7 @@ function App() {
     setWakaLoading(true);
     setWakaError('');
     try {
-      const res = await fetch('/api/wakatime');
+      const res = await fetch(apiUrl('/api/wakatime'));
       const isJson = (res.headers.get('content-type') || '').includes('application/json');
       if (res.status === 404 || !isJson) throw new Error('FUNCTION_MISSING');
       const data = await res.json().catch(() => ({}));
@@ -398,7 +399,7 @@ function App() {
     setAiSummary('');
     try {
       const payload = waka ? { ...stats, coding: waka } : stats;
-      const res = await fetch('/api/summary', {
+      const res = await fetch(apiUrl('/api/summary'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ stats: payload }),
