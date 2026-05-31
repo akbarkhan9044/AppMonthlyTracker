@@ -1081,7 +1081,7 @@ function App() {
                 </div>
 
                 <div className="insights-section-title">Today</div>
-                <div className="chal-today">
+                <div className="chal-today-row">
                   <span className={`chal-req${challengeView.today?.tasksDone ? ' met' : ''}`}>
                     {challengeView.today?.tasksDone ? '✓' : '○'} Task completed
                   </span>

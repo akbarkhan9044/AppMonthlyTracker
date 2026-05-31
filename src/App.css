@@ -516,7 +516,10 @@ a {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
   z-index: 30;
 }
-.row.done .row-text-overlay { display: none; }
+.row.done .row-text-overlay {
+  text-decoration: line-through;
+  color: var(--done);
+}
 .listcard .row:hover .row-text-overlay { background: var(--surface); }
 
 .row.done .row-text {
@@ -1483,7 +1486,7 @@ a {
   color: var(--ink-faint);
 }
 
-.chal-today {
+.chal-today-row {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
