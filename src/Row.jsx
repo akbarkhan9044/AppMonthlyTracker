@@ -111,7 +111,7 @@ export function Row({ item, onToggle, onEdit, onDelete, onRecur, onHeader, onMov
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => onDropRow(e, index)}
     >
-      <button className="row-checkbox" onClick={onToggle} title="Mark complete"></button>
+      <button className="row-checkbox" onClick={onToggle} title={item.done ? 'Mark incomplete' : 'Mark complete'}></button>
       {editing ? (
         <textarea
           ref={taRef}
