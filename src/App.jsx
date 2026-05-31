@@ -27,6 +27,14 @@ function App() {
   const [waka, setWaka] = useState(null);
   const [wakaLoading, setWakaLoading] = useState(false);
   const [wakaError, setWakaError] = useState('');
+  const [challengeOpen, setChallengeOpen] = useState(false);
+  const [challenge, setChallenge] = useState(() => {
+    try {
+      const raw = localStorage.getItem('dayboard.challenge');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return { startKey: null, coded: {} };
+  });
   const [fontIdx, setFontIdx] = useState(() => Number(localStorage.getItem('dayboard.font')) || 5);
   const [anchor, setAnchor] = useState(() => today0());
   const [viewDays, setViewDays] = useState(() => {
@@ -213,6 +221,7 @@ function App() {
   useEffect(() => { localStorage.setItem('dayboard.theme', theme); }, [theme]);
   useEffect(() => { localStorage.setItem('dayboard.font', String(fontIdx)); }, [fontIdx]);
   useEffect(() => { localStorage.setItem('dayboard.view', String(viewDays)); }, [viewDays]);
+  useEffect(() => { localStorage.setItem('dayboard.challenge', JSON.stringify(challenge)); }, [challenge]);
 
   // Apply theme + font size
   useEffect(() => {
@@ -301,6 +310,36 @@ function App() {
   const stats = useMemo(() => computeStats(store, boards), [store, boards]);
   const maxDay = useMemo(() => Math.max(1, ...stats.last7.map(d => d.total)), [stats]);
 
+  // 100 Days challenge — a day counts when ≥1 task done AND ≥1h coded
+  const CODE_GOAL = 3600;
+  const challengeView = useMemo(() => {
+    if (!challenge.startKey) return null;
+    const [sy, sm, sd] = challenge.startKey.split('-').map(Number);
+    const start = new Date(sy, sm - 1, sd);
+    start.setHours(0, 0, 0, 0);
+    const todayK = dayKey(today0());
+    const days = [];
+    let completed = 0, currentDay = 0;
+    for (let i = 0; i < 100; i++) {
+      const d = addDays(start, i);
+      const key = dayKey(d);
+      const isPast = key < todayK;
+      const isToday = key === todayK;
+      const tasksDone = (store.days[key] || []).some(it => !it.header && it.done);
+      const coded = key === todayK && waka ? (waka.todaySeconds || 0) : (challenge.coded[key] || 0);
+      const counts = tasksDone && coded >= CODE_GOAL;
+      let status;
+      if (counts) { status = 'done'; completed++; }
+      else if (isToday) status = 'today';
+      else if (isPast) status = 'missed';
+      else status = 'upcoming';
+      if (isPast || isToday) currentDay = i + 1;
+      days.push({ key, n: i + 1, status, tasksDone, coded });
+    }
+    const today = days.find(d => d.key === todayK) || null;
+    return { days, completed, currentDay: Math.min(currentDay, 100), today };
+  }, [challenge, store, waka]);
+
   const fetchWaka = useCallback(async () => {
     setWakaLoading(true);
     setWakaError('');
@@ -311,6 +350,15 @@ function App() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
       setWaka(data);
+      // Record per-day coded seconds for the 100-day challenge (WakaTime free
+      // only keeps ~14 days, so we snapshot what we see).
+      if (data.last7?.length) {
+        setChallenge(c => {
+          const coded = { ...c.coded };
+          for (const d of data.last7) if (d.date) coded[d.date] = d.seconds;
+          return { ...c, coded };
+        });
+      }
     } catch (e) {
       const msg = e.message || '';
       setWaka(null);
@@ -324,10 +372,10 @@ function App() {
     }
   }, []);
 
-  // Load WakaTime stats when the WakaTime or Insights panel opens
+  // Load WakaTime stats when any panel that needs coding data opens
   useEffect(() => {
-    if ((wakaOpen || insightsOpen) && !waka && !wakaLoading && !wakaError) fetchWaka();
-  }, [wakaOpen, insightsOpen, waka, wakaLoading, wakaError, fetchWaka]);
+    if ((wakaOpen || insightsOpen || challengeOpen) && !waka && !wakaLoading && !wakaError) fetchWaka();
+  }, [wakaOpen, insightsOpen, challengeOpen, waka, wakaLoading, wakaError, fetchWaka]);
 
   const generateAiSummary = useCallback(async () => {
     setAiLoading(true);
@@ -607,6 +655,13 @@ function App() {
           onClick={() => setWakaOpen(true)}
         >
           {Icons.code()}
+        </button>
+        <button
+          className="ft-moon"
+          title="100 Days challenge"
+          onClick={() => setChallengeOpen(true)}
+        >
+          {Icons.target()}
         </button>
         <button
           className={`ft-moon${dark ? ' on' : ''}`}
@@ -978,6 +1033,93 @@ function App() {
                     </div>
                   </>
                 )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 100 Days challenge modal */}
+      {challengeOpen && (
+        <div className="modal-overlay" onMouseDown={() => setChallengeOpen(false)}>
+          <div className="modal modal-wide" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">100 Days challenge</h2>
+              <button className="modal-close" title="Close" onClick={() => setChallengeOpen(false)}>
+                {Icons.close()}
+              </button>
+            </div>
+
+            {!challengeView ? (
+              <div className="ai-box">
+                <p className="ai-hint">
+                  Build a daily habit: a day counts when you complete <strong>at least one task</strong> and
+                  code <strong>at least 1 hour</strong> (via WakaTime). Track 100 days of consistency.
+                </p>
+                <button
+                  className="modal-btn modal-btn-primary"
+                  onClick={() => setChallenge(c => ({ ...c, startKey: dayKey(today0()) }))}
+                >
+                  Start the challenge
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="insights-grid insights-grid-3">
+                  <div className="stat-card">
+                    <div className="stat-num">{challengeView.currentDay}<span className="stat-of">/100</span></div>
+                    <div className="stat-label">current day</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-num">{challengeView.completed}</div>
+                    <div className="stat-label">days completed</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-num">{100 - challengeView.completed}</div>
+                    <div className="stat-label">remaining</div>
+                  </div>
+                </div>
+
+                <div className="insights-section-title">Today</div>
+                <div className="chal-today">
+                  <span className={`chal-req${challengeView.today?.tasksDone ? ' met' : ''}`}>
+                    {challengeView.today?.tasksDone ? '✓' : '○'} Task completed
+                  </span>
+                  <span className={`chal-req${(challengeView.today?.coded || 0) >= CODE_GOAL ? ' met' : ''}`}>
+                    {(challengeView.today?.coded || 0) >= CODE_GOAL ? '✓' : '○'} Coded 1h
+                    <span className="chal-sub">
+                      {' '}({Math.floor((challengeView.today?.coded || 0) / 3600)}h{' '}
+                      {Math.floor(((challengeView.today?.coded || 0) % 3600) / 60)}m
+                      {waka ? '' : ' · open Coding to sync'})
+                    </span>
+                  </span>
+                </div>
+
+                <div className="insights-section-title">Progress</div>
+                <div className="chal-grid">
+                  {challengeView.days.map(d => (
+                    <div
+                      key={d.key}
+                      className={`chal-cell chal-${d.status}`}
+                      title={`Day ${d.n} · ${d.key} · ${d.status}`}
+                    />
+                  ))}
+                </div>
+                <div className="chal-legend">
+                  <span><i className="chal-cell chal-done" /> Completed</span>
+                  <span><i className="chal-cell chal-today" /> Today</span>
+                  <span><i className="chal-cell chal-missed" /> Missed</span>
+                  <span><i className="chal-cell chal-upcoming" /> Upcoming</span>
+                </div>
+
+                <div className="modal-actions" style={{ marginTop: '18px' }}>
+                  <button
+                    className="modal-btn modal-btn-ghost"
+                    onClick={() => setChallenge(c => ({ ...c, startKey: null }))}
+                  >
+                    Reset challenge
+                  </button>
+                </div>
               </>
             )}
           </div>

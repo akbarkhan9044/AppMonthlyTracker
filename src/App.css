@@ -1476,6 +1476,88 @@ a {
   padding: 4px 10px;
 }
 
+/* 100 Days challenge */
+.stat-of {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--ink-faint);
+}
+
+.chal-today {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.chal-req {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: var(--ink-faint);
+}
+
+.chal-req.met {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.chal-sub {
+  color: var(--ink-faint);
+  font-weight: 400;
+  font-size: 0.82rem;
+}
+
+.chal-grid {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  gap: 5px;
+}
+
+.chal-cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.chal-done {
+  background: var(--accent);
+}
+
+.chal-today {
+  background: #e0731f;
+}
+
+.chal-missed {
+  background: var(--line-strong);
+  opacity: 0.6;
+}
+
+.chal-upcoming {
+  background: var(--line);
+}
+
+.chal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.chal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chal-legend i.chal-cell {
+  width: 12px;
+  height: 12px;
+  aspect-ratio: auto;
+  display: inline-block;
+}
+
 .stat-card {
   position: relative;
   background: var(--surface);

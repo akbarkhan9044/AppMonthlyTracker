@@ -108,6 +108,13 @@ export const Icons = {
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
     </svg>
   ),
+  target: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  ),
   code: (p) => (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
       <path d="m8 7-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16" />
