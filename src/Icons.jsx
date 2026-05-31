@@ -108,6 +108,11 @@ export const Icons = {
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
     </svg>
   ),
+  code: (p) => (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="m8 7-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16" />
+    </svg>
+  ),
   flame: (p) => (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" {...p}>
       <path d="M12 2c.5 3-1.8 4.2-2.9 5.8C8 9.4 7.5 10.7 7.5 12a4.5 4.5 0 0 0 9 0c0-1.8-.9-3.4-2-4.6.2 1.3-.4 2.3-1.2 2.6.6-2.2-.3-5.6-1.3-8Z" />

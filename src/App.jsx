@@ -20,6 +20,7 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const dark = theme === 'dark';
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [wakaOpen, setWakaOpen] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
@@ -323,10 +324,10 @@ function App() {
     }
   }, []);
 
-  // Load WakaTime stats when the Insights panel opens
+  // Load WakaTime stats when the WakaTime or Insights panel opens
   useEffect(() => {
-    if (insightsOpen && !waka && !wakaLoading) fetchWaka();
-  }, [insightsOpen, waka, wakaLoading, fetchWaka]);
+    if ((wakaOpen || insightsOpen) && !waka && !wakaLoading && !wakaError) fetchWaka();
+  }, [wakaOpen, insightsOpen, waka, wakaLoading, wakaError, fetchWaka]);
 
   const generateAiSummary = useCallback(async () => {
     setAiLoading(true);
@@ -599,6 +600,13 @@ function App() {
           onClick={() => setInsightsOpen(true)}
         >
           {Icons.chart()}
+        </button>
+        <button
+          className="ft-moon"
+          title="Coding time (WakaTime)"
+          onClick={() => setWakaOpen(true)}
+        >
+          {Icons.code()}
         </button>
         <button
           className={`ft-moon${dark ? ' on' : ''}`}
@@ -891,9 +899,41 @@ function App() {
               </>
             )}
 
-            <div className="insights-section-title">Coding time (WakaTime)</div>
+            <div className="insights-section-title">AI summary</div>
+            <div className="ai-box">
+              {aiSummary && <p className="ai-text">{aiSummary}</p>}
+              {aiError && <p className="ai-error">{aiError}</p>}
+              {!aiSummary && !aiError && !aiLoading && (
+                <p className="ai-hint">Get a short written update on your streak, today, this week, and where your effort is going.</p>
+              )}
+              <button className="modal-btn modal-btn-primary" onClick={generateAiSummary} disabled={aiLoading}>
+                {aiLoading ? 'Thinking…' : aiSummary ? 'Regenerate' : 'Generate AI summary'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WakaTime modal */}
+      {wakaOpen && (
+        <div className="modal-overlay" onMouseDown={() => setWakaOpen(false)}>
+          <div className="modal modal-wide" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Coding time</h2>
+              <button className="modal-close" title="Close" onClick={() => setWakaOpen(false)}>
+                {Icons.close()}
+              </button>
+            </div>
+
             {wakaLoading && <div className="ai-hint">Loading coding stats…</div>}
-            {wakaError && !wakaLoading && <div className="ai-error">{wakaError}</div>}
+            {wakaError && !wakaLoading && (
+              <div className="ai-box">
+                <p className="ai-error">{wakaError}</p>
+                <button className="modal-btn modal-btn-ghost" onClick={() => { setWakaError(''); fetchWaka(); }}>
+                  Retry
+                </button>
+              </div>
+            )}
             {waka && !wakaLoading && (
               <>
                 <div className="insights-grid insights-grid-3">
@@ -910,40 +950,36 @@ function App() {
                     <div className="stat-label">daily average</div>
                   </div>
                 </div>
+
                 {waka.projects?.length > 0 && (
-                  <div className="effort-list" style={{ marginTop: '12px' }}>
-                    {waka.projects.map((p) => (
-                      <div className="effort-row" key={p.name}>
-                        <span className="effort-name">{p.name}</span>
-                        <div className="effort-bar">
-                          <div className="effort-bar-done" style={{ width: `${p.percent || 0}%` }} />
+                  <>
+                    <div className="insights-section-title">Top projects</div>
+                    <div className="effort-list">
+                      {waka.projects.map((p) => (
+                        <div className="effort-row" key={p.name}>
+                          <span className="effort-name">{p.name}</span>
+                          <div className="effort-bar">
+                            <div className="effort-bar-done" style={{ width: `${p.percent || 0}%` }} />
+                          </div>
+                          <span className="effort-count">{p.text}</span>
                         </div>
-                        <span className="effort-count">{p.text}</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </>
                 )}
+
                 {waka.languages?.length > 0 && (
-                  <div className="waka-langs">
-                    {waka.languages.map((l) => (
-                      <span className="waka-lang" key={l.name}>{l.name} · {l.text}</span>
-                    ))}
-                  </div>
+                  <>
+                    <div className="insights-section-title">Languages</div>
+                    <div className="waka-langs">
+                      {waka.languages.map((l) => (
+                        <span className="waka-lang" key={l.name}>{l.name} · {l.text}</span>
+                      ))}
+                    </div>
+                  </>
                 )}
               </>
             )}
-
-            <div className="insights-section-title">AI summary</div>
-            <div className="ai-box">
-              {aiSummary && <p className="ai-text">{aiSummary}</p>}
-              {aiError && <p className="ai-error">{aiError}</p>}
-              {!aiSummary && !aiError && !aiLoading && (
-                <p className="ai-hint">Get a short written update on your streak, today, this week, and where your effort is going.</p>
-              )}
-              <button className="modal-btn modal-btn-primary" onClick={generateAiSummary} disabled={aiLoading}>
-                {aiLoading ? 'Thinking…' : aiSummary ? 'Regenerate' : 'Generate AI summary'}
-              </button>
-            </div>
           </div>
         </div>
       )}
