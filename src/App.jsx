@@ -5,13 +5,14 @@ import { ListCard } from './ListCard';
 import { Calendar } from './Calendar';
 import {
   dayKey, addDays, today0, sameDay, uid,
-  loadStore, saveStore, SEED_BOARDS, FONT_STEPS
+  loadStore, saveStore, rolloverStore, SEED_BOARDS, FONT_STEPS
 } from './utils';
 import { computeStats } from './stats';
 import './App.css';
 
 function App() {
-  const [store, setStore] = useState(loadStore);
+  const [store, setStore] = useState(() => rolloverStore(loadStore()));
+  const [midnightTick, setMidnightTick] = useState(0);
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('dayboard.theme');
     if (saved) return saved;
@@ -218,6 +219,19 @@ function App() {
   }, []);
 
   useEffect(() => { saveStore(store); }, [store]);
+
+  // At midnight, roll unfinished tasks forward to the new day (and reschedule).
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const id = setTimeout(() => {
+      setStore(s => rolloverStore(s));
+      setAnchor(today0());
+      setMidnightTick(t => t + 1);
+    }, nextMidnight - now + 1000);
+    return () => clearTimeout(id);
+  }, [midnightTick]);
   useEffect(() => { localStorage.setItem('dayboard.theme', theme); }, [theme]);
   useEffect(() => { localStorage.setItem('dayboard.font', String(fontIdx)); }, [fontIdx]);
   useEffect(() => { localStorage.setItem('dayboard.view', String(viewDays)); }, [viewDays]);
@@ -310,8 +324,9 @@ function App() {
   const stats = useMemo(() => computeStats(store, boards), [store, boards]);
   const maxDay = useMemo(() => Math.max(1, ...stats.last7.map(d => d.total)), [stats]);
 
-  // 100 Days challenge — a day counts when ≥1 task done AND ≥1h coded
+  // 100 Days challenge — a day counts when ≥2 tasks done OR ≥1h coded
   const CODE_GOAL = 3600;
+  const TASK_GOAL = 2;
   const challengeView = useMemo(() => {
     if (!challenge.startKey) return null;
     const [sy, sm, sd] = challenge.startKey.split('-').map(Number);
@@ -325,16 +340,16 @@ function App() {
       const key = dayKey(d);
       const isPast = key < todayK;
       const isToday = key === todayK;
-      const tasksDone = (store.days[key] || []).some(it => !it.header && it.done);
+      const tasksCount = (store.days[key] || []).filter(it => !it.header && it.done).length;
       const coded = key === todayK && waka ? (waka.todaySeconds || 0) : (challenge.coded[key] || 0);
-      const counts = tasksDone && coded >= CODE_GOAL;
+      const counts = tasksCount >= TASK_GOAL || coded >= CODE_GOAL;
       let status;
       if (counts) { status = 'done'; completed++; }
       else if (isToday) status = 'today';
       else if (isPast) status = 'missed';
       else status = 'upcoming';
       if (isPast || isToday) currentDay = i + 1;
-      days.push({ key, n: i + 1, status, tasksDone, coded });
+      days.push({ key, n: i + 1, status, tasksCount, coded });
     }
     const today = days.find(d => d.key === todayK) || null;
     return { days, completed, currentDay: Math.min(currentDay, 100), today };
@@ -1053,7 +1068,7 @@ function App() {
             {!challengeView ? (
               <div className="ai-box">
                 <p className="ai-hint">
-                  Build a daily habit: a day counts when you complete <strong>at least one task</strong> and
+                  Build a daily habit: a day counts when you complete <strong>at least 2 tasks</strong> or
                   code <strong>at least 1 hour</strong> (via WakaTime). Track 100 days of consistency.
                 </p>
                 <button
@@ -1080,13 +1095,15 @@ function App() {
                   </div>
                 </div>
 
-                <div className="insights-section-title">Today</div>
+                <div className="insights-section-title">Today — do either one</div>
                 <div className="chal-today-row">
-                  <span className={`chal-req${challengeView.today?.tasksDone ? ' met' : ''}`}>
-                    {challengeView.today?.tasksDone ? '✓' : '○'} Task completed
+                  <span className={`chal-req${(challengeView.today?.tasksCount || 0) >= TASK_GOAL ? ' met' : ''}`}>
+                    {(challengeView.today?.tasksCount || 0) >= TASK_GOAL ? '✓' : '○'} Complete 2 tasks
+                    <span className="chal-sub"> ({challengeView.today?.tasksCount || 0}/{TASK_GOAL})</span>
                   </span>
+                  <span className="chal-or">or</span>
                   <span className={`chal-req${(challengeView.today?.coded || 0) >= CODE_GOAL ? ' met' : ''}`}>
-                    {(challengeView.today?.coded || 0) >= CODE_GOAL ? '✓' : '○'} Coded 1h
+                    {(challengeView.today?.coded || 0) >= CODE_GOAL ? '✓' : '○'} Code 1 hour
                     <span className="chal-sub">
                       {' '}({Math.floor((challengeView.today?.coded || 0) / 3600)}h{' '}
                       {Math.floor(((challengeView.today?.coded || 0) % 3600) / 60)}m

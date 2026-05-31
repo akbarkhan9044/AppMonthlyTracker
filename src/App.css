@@ -1503,6 +1503,15 @@ a {
   font-weight: 600;
 }
 
+.chal-or {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+  align-self: center;
+}
+
 .chal-sub {
   color: var(--ink-faint);
   font-weight: 400;

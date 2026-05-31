@@ -63,6 +63,33 @@ export function saveStore(s) {
   } catch (e) {}
 }
 
+// Carry unfinished to-dos forward: any task from a past day that isn't done
+// (and isn't a section header) moves to today. Done tasks and headers stay put
+// as that day's history. Day keys are "YYYY-MM-DD" so string compare == date order.
+export function rolloverStore(store) {
+  const todayKey = dayKey(today0());
+  const days = { ...(store.days || {}) };
+  const carried = [];
+  let changed = false;
+
+  for (const key of Object.keys(days)) {
+    if (key >= todayKey) continue; // only past days
+    const arr = days[key] || [];
+    const keep = arr.filter(it => it.header || it.done);
+    const move = arr.filter(it => !it.header && !it.done);
+    if (move.length) {
+      carried.push(...move);
+      days[key] = keep;
+      changed = true;
+    }
+  }
+
+  if (carried.length) {
+    days[todayKey] = [...(days[todayKey] || []), ...carried];
+  }
+  return changed ? { ...store, days } : store;
+}
+
 export const FONT_STEPS = { 1: 14, 3: 16, 5: 18, 7: 21 };
 export const ACCENTS = ['#6d3bf0', '#e0457b', '#1f8a5b', '#2a6fdb', '#e0731f', '#111114'];
 export const RAILS = ['#7c3bf0', '#e0457b', '#1f8a5b', '#2a6fdb', '#e0731f', '#15151a'];
