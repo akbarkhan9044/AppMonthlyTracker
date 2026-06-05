@@ -14,6 +14,14 @@ import {
   getSession, onAuthChange, sendMagicLink, signOut,
   fetchRemote, pushRemote, subscribeRemote,
 } from './cloud';
+
+// The synced document shape (stable key order for echo-safe comparisons).
+const buildDoc = (s, b, c) => ({
+  days: s.days || {},
+  listsByBoard: s.listsByBoard || {},
+  boards: b,
+  challenge: c || { startKey: null, coded: {} },
+});
 import './App.css';
 
 function App() {
@@ -23,6 +31,7 @@ function App() {
   useEffect(() => { storeRef.current = store; }, [store]);
   // Cloud sync (Supabase)
   const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authStatus, setAuthStatus] = useState('idle'); // idle | sending | sent
@@ -51,6 +60,8 @@ function App() {
     } catch (e) {}
     return { startKey: null, coded: {} };
   });
+  const challengeRef = useRef(challenge);
+  useEffect(() => { challengeRef.current = challenge; }, [challenge]);
   const [fontIdx, setFontIdx] = useState(() => Number(localStorage.getItem('dayboard.font')) || 5);
   const [anchor, setAnchor] = useState(() => today0());
   const [viewDays, setViewDays] = useState(() => {
@@ -59,6 +70,8 @@ function App() {
   });
   const [board, setBoard] = useState(0);
   const [boards, setBoards] = useState(SEED_BOARDS);
+  const boardsRef = useRef(boards);
+  useEffect(() => { boardsRef.current = boards; }, [boards]);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -239,8 +252,8 @@ function App() {
   // Track the auth session.
   useEffect(() => {
     if (!cloudEnabled) return;
-    getSession().then(setSession);
-    return onAuthChange(setSession);
+    getSession().then((s) => { setSession(s); setAuthChecked(true); });
+    return onAuthChange((s) => { setSession(s); setAuthChecked(true); });
   }, []);
 
   // On login: pull cloud data (or seed it from local), then subscribe to realtime.
@@ -249,22 +262,29 @@ function App() {
     let active = true;
     let unsub = () => {};
     (async () => {
+      const applyRemote = (d) => {
+        const nextStore = { days: d.days || {}, listsByBoard: d.listsByBoard || {} };
+        const nextBoards = Array.isArray(d.boards) && d.boards.length ? d.boards : SEED_BOARDS;
+        const nextChallenge = d.challenge && typeof d.challenge === 'object'
+          ? d.challenge : { startKey: null, coded: {} };
+        lastSyncedRef.current = JSON.stringify(buildDoc(nextStore, nextBoards, nextChallenge));
+        setStore(nextStore);
+        setBoards(nextBoards);
+        setChallenge(nextChallenge);
+      };
       try {
         const remote = await fetchRemote(session.user.id);
         if (!active) return;
         if (remote?.data && Object.keys(remote.data).length) {
-          lastSyncedRef.current = JSON.stringify(remote.data);
-          setStore(remote.data);
+          applyRemote(remote.data);
         } else {
-          lastSyncedRef.current = JSON.stringify(storeRef.current);
-          await pushRemote(session.user.id, storeRef.current);
+          const doc = buildDoc(storeRef.current, boardsRef.current, challengeRef.current);
+          lastSyncedRef.current = JSON.stringify(doc);
+          await pushRemote(session.user.id, doc);
         }
       } catch (e) { /* stay local on error */ }
       if (!active) return;
-      unsub = subscribeRemote(session.user.id, (incoming) => {
-        lastSyncedRef.current = JSON.stringify(incoming);
-        setStore(incoming);
-      });
+      unsub = subscribeRemote(session.user.id, (incoming) => applyRemote(incoming));
     })();
     return () => { active = false; unsub(); };
   }, [session]);
@@ -273,14 +293,15 @@ function App() {
   // just received from realtime.
   useEffect(() => {
     if (!cloudEnabled || !session) return;
-    const json = JSON.stringify(store);
+    const doc = buildDoc(store, boards, challenge);
+    const json = JSON.stringify(doc);
     if (json === lastSyncedRef.current) return;
     const id = setTimeout(() => {
       lastSyncedRef.current = json;
-      pushRemote(session.user.id, store).catch(() => {});
+      pushRemote(session.user.id, doc).catch(() => {});
     }, 800);
     return () => clearTimeout(id);
-  }, [store, session]);
+  }, [store, boards, challenge, session]);
 
   const sendLoginLink = useCallback(async () => {
     const email = authEmail.trim();
@@ -538,6 +559,54 @@ function App() {
     );
     return out;
   }, [query, store]);
+
+  // Login wall: when sync is configured, require an account before the app.
+  if (cloudEnabled && !authChecked) {
+    return <div className="auth-splash" />;
+  }
+  if (cloudEnabled && !session) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card">
+          <div className="wordmark auth-wordmark">Atomic Tracker<span className="asterisk">*</span></div>
+          {authStatus === 'sent' ? (
+            <>
+              <p className="auth-text">
+                Check your inbox — we sent a sign-in link to <strong>{authEmail}</strong>.
+                Open it on this device to continue.
+              </p>
+              <button className="auth-btn auth-btn-ghost" onClick={() => setAuthStatus('idle')}>
+                Use a different email
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="auth-text">
+                Sign in to start. Each account keeps its own private to-dos, synced across your devices.
+              </p>
+              <input
+                className="auth-input"
+                type="email"
+                autoFocus
+                placeholder="you@example.com"
+                value={authEmail}
+                onChange={e => setAuthEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') sendLoginLink(); }}
+              />
+              {authError && <p className="auth-error">{authError}</p>}
+              <button
+                className="auth-btn"
+                onClick={sendLoginLink}
+                disabled={authStatus === 'sending'}
+              >
+                {authStatus === 'sending' ? 'Sending…' : 'Send sign-in link'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -1248,7 +1317,14 @@ function App() {
                 <div className="modal-actions">
                   <button
                     className="modal-btn modal-btn-ghost"
-                    onClick={async () => { await signOut(); setAuthOpen(false); }}
+                    onClick={async () => {
+                      await signOut();
+                      lastSyncedRef.current = null;
+                      setStore({ days: {}, listsByBoard: {} });
+                      setBoards(SEED_BOARDS);
+                      setChallenge({ startKey: null, coded: {} });
+                      setAuthOpen(false);
+                    }}
                   >
                     Sign out
                   </button>
