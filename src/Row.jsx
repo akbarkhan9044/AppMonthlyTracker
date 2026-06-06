@@ -78,7 +78,7 @@ export function Row({ item, onToggle, onEdit, onDelete, onRecur, onHeader, onMov
       <div
         className={`row header-row${editing ? ' is-editing' : ''}`}
         draggable={!editing}
-        onDragStart={(e) => onMoveStart(e, index)}
+        onDragStart={(e) => onMoveStart(e, index, item.id)}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => onDropRow(e, index)}
       >
@@ -107,7 +107,7 @@ export function Row({ item, onToggle, onEdit, onDelete, onRecur, onHeader, onMov
     <div
       className={`row${item.done ? ' done' : ''}${editing ? ' is-editing' : ''}`}
       draggable={!editing}
-      onDragStart={(e) => onMoveStart(e, index)}
+      onDragStart={(e) => onMoveStart(e, index, item.id)}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => onDropRow(e, index)}
     >

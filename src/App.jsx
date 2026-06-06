@@ -370,6 +370,24 @@ function App() {
     };
   }
 
+  // Move a task to another day (drag across day columns). toIndex null = append.
+  const moveItemToDay = useCallback((fromKey, id, toKey, toIndex) => {
+    setStore(s => {
+      const fromArr = [...(s.days[fromKey] || [])];
+      const idx = fromArr.findIndex(x => x.id === id);
+      if (idx === -1) return s;
+      const [item] = fromArr.splice(idx, 1);
+      const days = { ...s.days, [fromKey]: fromArr };
+      const toArr = fromKey === toKey ? fromArr : [...(s.days[toKey] || [])];
+      let at = toIndex == null ? toArr.length : toIndex;
+      if (at < 0) at = 0;
+      if (at > toArr.length) at = toArr.length;
+      toArr.splice(at, 0, item);
+      days[toKey] = toArr;
+      return { ...s, days };
+    });
+  }, []);
+
   // List mutations - now board-specific
   const setLists = (boardIdx, fn) => setStore(s => {
     const currentLists = s.listsByBoard?.[boardIdx] || [];
@@ -703,6 +721,8 @@ function App() {
                 hasItems={items.length > 0}
                 items={items}
                 A={dayActions(key)}
+                dayKeyStr={key}
+                onMoveToDay={moveItemToDay}
               />
             );
           })}
@@ -1408,6 +1428,8 @@ function App() {
                   hasItems={items.length > 0}
                   items={items}
                   A={dayActions(key)}
+                  dayKeyStr={key}
+                  onMoveToDay={moveItemToDay}
                 />
               );
             })()}

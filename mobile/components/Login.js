@@ -89,16 +89,16 @@ export default function Login() {
         ) : (
           <>
             <Text style={styles.text}>
-              Enter the 6-digit code we emailed to <Text style={styles.bold}>{email}</Text>.
+              Enter the code we emailed to <Text style={styles.bold}>{email}</Text>.
             </Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
-              placeholder="123456"
+              placeholder="Enter code"
               placeholderTextColor="#9ca3af"
               keyboardType="number-pad"
-              maxLength={6}
+              maxLength={10}
               value={code}
-              onChangeText={setCode}
+              onChangeText={(t) => setCode(t.replace(/\D/g, ''))}
               onSubmitEditing={verify}
             />
             {!!error && <Text style={styles.error}>{error}</Text>}
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   text: { fontFamily: undefined, fontSize: 15, lineHeight: 22, color: '#6b7280', textAlign: 'center', marginBottom: 22 },
   bold: { color: '#111827', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingVertical: 13, paddingHorizontal: 14, fontSize: 16, color: '#111827', marginBottom: 12, textAlign: 'center' },
-  codeInput: { letterSpacing: 8, fontSize: 22 },
+  codeInput: { letterSpacing: 4, fontSize: 20 },
   btn: { backgroundColor: '#111827', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   error: { color: '#e0457b', fontSize: 14, marginBottom: 12, textAlign: 'center' },
